@@ -2,7 +2,8 @@
 
 A standalone Windows application for unlocking password protected PDF documents.
 
-![image](https://github.com/user-attachments/assets/0ed21bf2-b458-4fb3-a6c6-3b25e31f044e)
+<img width="900" height="700" alt="image" src="https://github.com/user-attachments/assets/f9d86767-8214-47f5-b7db-1be8a8d7aba6" />
+
 
 
 
