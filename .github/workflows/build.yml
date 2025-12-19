@@ -73,7 +73,7 @@ jobs:
 
       - name: Build binary with PyInstaller
         run: |
-          pyinstaller --onefile --windowed --name pdf-unlocker --version-file version_file.py --add-data "resources/app_icon.png;resources/" --add-data "resources/down_arrow_icon.png;resources/" --add-data "resources/dark_mode.png;resources/" --add-data "resources/light_mode.png;resources/" --upx-dir "C:\ProgramData\chocolatey\bin" main.py
+          pyinstaller --onefile --windowed --name pdf-unlocker --icon "resources/app_icon.png" --version-file version_file.py --add-data "resources/app_icon.png;resources/" --add-data "resources/down_arrow_icon.png;resources/" --add-data "resources/dark_mode.png;resources/" --add-data "resources/light_mode.png;resources/" --upx-dir "C:\ProgramData\chocolatey\bin" main.py
 
       - name: Import GPG key and sign binary
         shell: bash
@@ -123,7 +123,7 @@ jobs:
 
       - name: Build binary with PyInstaller
         run: |
-          pyinstaller --onefile --name pdf-unlocker --add-data "resources/app_icon.png:resources/" --add-data "resources/down_arrow_icon.png:resources/" --add-data "resources/dark_mode.png:resources/" --add-data "resources/light_mode.png:resources/" main.py
+          pyinstaller --onefile --name pdf-unlocker --icon "resources/app_icon.png" --add-data "resources/app_icon.png:resources/" --add-data "resources/down_arrow_icon.png:resources/" --add-data "resources/dark_mode.png:resources/" --add-data "resources/light_mode.png:resources/" main.py
 
       - name: Import GPG key and sign binary
         shell: bash
@@ -173,7 +173,7 @@ jobs:
 
       - name: Build binary with PyInstaller
         run: |
-          pyinstaller --onefile --name pdf-unlocker --add-data "resources/app_icon.png:resources/" --add-data "resources/down_arrow_icon.png:resources/" --add-data "resources/dark_mode.png:resources/" --add-data "resources/light_mode.png:resources/" main.py
+          pyinstaller --onefile --name pdf-unlocker --icon "resources/app_icon.png" --add-data "resources/app_icon.png:resources/" --add-data "resources/down_arrow_icon.png:resources/" --add-data "resources/dark_mode.png:resources/" --add-data "resources/light_mode.png:resources/" main.py
 
       - name: Import GPG key and sign binary
         shell: bash
