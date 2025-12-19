@@ -1,4 +1,4 @@
-name: Build and Publish Windows Binary
+name: Build and Publish Multi-Platform Binaries
 
 on:
   push:
@@ -9,15 +9,16 @@ on:
       - main
 
 jobs:
-  build:
+  build-windows:
     runs-on: windows-latest
-
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
           python-version: '3.9'
 
@@ -55,13 +56,13 @@ jobs:
           echo "      [" >> version_file.py
           echo "        StringTable(" >> version_file.py
           echo "          '040904B0'," >> version_file.py
-          echo "          [StringStruct('CompanyName', 'Your Company')," >> version_file.py
-          echo "          StringStruct('FileDescription', 'PDF Decryptor')," >> version_file.py
+          echo "          [StringStruct('CompanyName', 'Harley Gilpin')," >> version_file.py
+          echo "          StringStruct('FileDescription', 'PDF Unlocker')," >> version_file.py
           echo "          StringStruct('FileVersion', '${VERSION}')," >> version_file.py
-          echo "          StringStruct('InternalName', 'pdf-decryptor')," >> version_file.py
+          echo "          StringStruct('InternalName', 'pdf-unlocker')," >> version_file.py
           echo "          StringStruct('LegalCopyright', '')," >> version_file.py
-          echo "          StringStruct('OriginalFilename', 'pdf-decryptor.exe')," >> version_file.py
-          echo "          StringStruct('ProductName', 'PDF Decryptor')," >> version_file.py
+          echo "          StringStruct('OriginalFilename', 'pdf-unlocker.exe')," >> version_file.py
+          echo "          StringStruct('ProductName', 'PDF Unlocker')," >> version_file.py
           echo "          StringStruct('ProductVersion', '${VERSION}')])" >> version_file.py
           echo "      ]" >> version_file.py
           echo "    )," >> version_file.py
@@ -72,32 +73,150 @@ jobs:
 
       - name: Build binary with PyInstaller
         run: |
-          pyinstaller --onefile --windowed --name pdf-decryptor --version-file version_file.py --add-data "resources/app_icon.png;." --add-data "resources/down_arrow_icon.png;." --add-data "resources/dark_mode.png;." --add-data "resources/light_mode.png;." --upx-dir "C:\ProgramData\chocolatey\bin" main.py
-
-      - name: Check binary size
-        run: dir dist\pdf-decryptor.exe
-        shell: cmd
+          pyinstaller --onefile --windowed --name pdf-unlocker --version-file version_file.py --add-data "resources/app_icon.png;resources/" --add-data "resources/down_arrow_icon.png;resources/" --add-data "resources/dark_mode.png;resources/" --add-data "resources/light_mode.png;resources/" --upx-dir "C:\ProgramData\chocolatey\bin" main.py
 
       - name: Import GPG key and sign binary
         shell: bash
         run: |
-          echo "Starting GPG import at $(date)"
-          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import --verbose
-          echo "GPG import finished at $(date)"
-          echo "Starting GPG signing at $(date)"
-          gpg --batch --verbose --output dist/pdf-decryptor.exe.sig --detach-sign --local-user ${{ secrets.GPG_KEY_ID }} dist/pdf-decryptor.exe 2>&1 | tee gpg-sign.log
-          echo "GPG signing finished at $(date)"
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+          gpg --batch --detach-sign --output dist/pdf-unlocker.exe.sig --local-user ${{ secrets.GPG_KEY_ID }} dist/pdf-unlocker.exe
+
+      - name: Rename Windows binary
+        run: |
+          mv dist/pdf-unlocker.exe dist/pdf-unlocker-windows.exe
+          mv dist/pdf-unlocker.exe.sig dist/pdf-unlocker-windows.exe.sig
+
+      - name: Upload Windows Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-binaries
+          path: |
+            dist/pdf-unlocker-windows.exe
+            dist/pdf-unlocker-windows.exe.sig
+
+  build-linux:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Install UPX
+        run: sudo apt-get install -y upx-ucl
+
+      - name: Read version
+        id: version
+        run: echo "version=$(cat version.txt)" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Build binary with PyInstaller
+        run: |
+          pyinstaller --onefile --name pdf-unlocker --add-data "resources/app_icon.png:resources/" --add-data "resources/down_arrow_icon.png:resources/" --add-data "resources/dark_mode.png:resources/" --add-data "resources/light_mode.png:resources/" main.py
+
+      - name: Import GPG key and sign binary
+        shell: bash
+        run: |
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+          gpg --batch --detach-sign --output dist/pdf-unlocker.sig --local-user ${{ secrets.GPG_KEY_ID }} dist/pdf-unlocker
+
+      - name: Rename Linux binary
+        run: |
+          mv dist/pdf-unlocker dist/pdf-unlocker-linux
+          mv dist/pdf-unlocker.sig dist/pdf-unlocker-linux.sig
+
+      - name: Upload Linux Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-binaries
+          path: |
+            dist/pdf-unlocker-linux
+            dist/pdf-unlocker-linux.sig
+
+  build-macos:
+    runs-on: macos-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Install UPX
+        run: brew install upx
+
+      - name: Read version
+        id: version
+        run: echo "version=$(cat version.txt)" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Build binary with PyInstaller
+        run: |
+          pyinstaller --onefile --name pdf-unlocker --add-data "resources/app_icon.png:resources/" --add-data "resources/down_arrow_icon.png:resources/" --add-data "resources/dark_mode.png:resources/" --add-data "resources/light_mode.png:resources/" main.py
+
+      - name: Import GPG key and sign binary
+        shell: bash
+        run: |
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+          gpg --batch --detach-sign --output dist/pdf-unlocker.sig --local-user ${{ secrets.GPG_KEY_ID }} dist/pdf-unlocker
+
+      - name: Rename macOS binary
+        run: |
+          mv dist/pdf-unlocker dist/pdf-unlocker-macos
+          mv dist/pdf-unlocker.sig dist/pdf-unlocker-macos.sig
+
+      - name: Upload macOS Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-binaries
+          path: |
+            dist/pdf-unlocker-macos
+            dist/pdf-unlocker-macos.sig
+
+  create-release:
+    runs-on: ubuntu-latest
+    needs: [build-windows, build-linux, build-macos]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
 
       - name: Create Release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v${{ steps.version.outputs.version }}
-          name: Release v${{ steps.version.outputs.version }}
+          tag_name: v${{ needs.build-windows.outputs.version }}
+          name: Release v${{ needs.build-windows.outputs.version }}
           draft: false
           prerelease: false
           files: |
-            dist/pdf-decryptor.exe
-            dist/pdf-decryptor.exe.sig
+            artifacts/windows-binaries/pdf-unlocker-windows.exe
+            artifacts/windows-binaries/pdf-unlocker-windows.exe.sig
+            artifacts/linux-binaries/pdf-unlocker-linux
+            artifacts/linux-binaries/pdf-unlocker-linux.sig
+            artifacts/macos-binaries/pdf-unlocker-macos
+            artifacts/macos-binaries/pdf-unlocker-macos.sig
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
