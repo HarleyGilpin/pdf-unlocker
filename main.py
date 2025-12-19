@@ -3,6 +3,8 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+import ctypes
+from ctypes import wintypes
 from typing import Optional
 
 from PyPDF2 import PdfReader, PdfWriter
@@ -22,6 +24,7 @@ from PyQt6.QtGui import (
     QFont,
     QIcon,
     QPainter,
+    QPen,
     QPixmap, QPdfWriter,
     QDesktopServices,
 )
@@ -47,32 +50,19 @@ from PyQt6.QtWidgets import (
 )
 
 # Color themes
-DARK_THEME = {
-    "background": "#0a0a0a",
-    "surface": "#111111",
-    "primary": "#0070f3",
-    "secondary": "#444444",
-    "text": "#ffffff",
-    "text-secondary": "#888888",
-    "border": "#333333",
-    "hover": "#1a1a1a",
-    "success": "#10B981",
-    "warning": "#F59E0B",
-    "error": "#EF4444",
-}
-
-LIGHT_THEME = {
-    "background": "#f5f5f5",
-    "surface": "#ffffff",
-    "primary": "#0070f3",
-    "secondary": "#e5e5e5",
-    "text": "#333333",
-    "text-secondary": "#666666",
-    "border": "#e0e0e0",
-    "hover": "#f0f0f0",
-    "success": "#10B981",
-    "warning": "#F59E0B",
-    "error": "#EF4444",
+# Glassmorphic Dark Theme
+GLASS_THEME = {
+    "background": "#0F0F0FB3",  # Deep matte black background with alpha (70%)
+    "surface": "rgba(30, 30, 30, 0.60)",  # Glassy semi-transparent surface
+    "primary": "#60A5FA",  # Bright accent blue
+    "secondary": "rgba(255, 255, 255, 0.1)",
+    "text": "#F3F4F6",  # Cool white
+    "text-secondary": "#9CA3AF",
+    "border": "rgba(255, 255, 255, 0.08)",  # Subtle glass border
+    "hover": "rgba(255, 255, 255, 0.1)",
+    "success": "#34D399",
+    "warning": "#FBBF24",
+    "error": "#F87171",
 }
 
 
@@ -82,8 +72,7 @@ def resource_path(relative_path: str) -> str:
     return os.path.join(base_path, relative_path)
 
 
-dark_mode_path = resource_path("dark_mode.png")
-light_mode_path = resource_path("light_mode.png")
+
 
 
 @dataclass
@@ -168,7 +157,7 @@ def create_placeholder_pdf(output_path):
     painter = QPainter()
     painter.begin(pdf_writer)
     painter.setFont(QFont("Arial", 12))
-    painter.setPen(QColor(DARK_THEME["text"]))
+    painter.setPen(QColor(GLASS_THEME["text"]))
     rect = painter.viewport()
     painter.drawText(
         rect,
@@ -182,17 +171,25 @@ def get_stylesheet(theme):
     """Generate stylesheet from theme colors."""
     return f"""
     QWidget {{
-        background-color: {theme['background']};
         color: {theme['text']};
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell;
+        font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
         font-size: 14px;
+    }}
+    QDialog, QMessageBox, QFileDialog {{
+        background-color: {theme['background']};
+    }}
+    QLabel {{
+        background-color: transparent;
+        border: none;
     }}
     QPushButton {{
         background-color: {theme['surface']};
         border: 1px solid {theme['border']};
-        border-radius: 6px;
-        padding: 10px 20px;
-        min-width: 100px;
+        border-radius: 8px;
+        padding: 12px 24px;
+        min-width: 120px;
+        font-weight: 600;
+        background-origin: border-box;
     }}
     QPushButton:hover {{
         background-color: {theme['hover']};
@@ -200,50 +197,60 @@ def get_stylesheet(theme):
     }}
     QPushButton:pressed {{
         background-color: {theme['primary']};
-        color: white;
+        color: #000000;
+        border-color: {theme['primary']};
     }}
     QListWidget {{
-        background-color: {theme['surface']};
-        border: 1px solid {theme['border']};
-        border-radius: 8px;
-        padding: 2px;
-        spacing: 0px;
+        background-color: transparent;
+        border: none;
+        outline: none;
+        padding: 8px;
     }}
     QListWidget::item {{
         background-color: {theme['surface']};
-        border-radius: 4px;
+        border-radius: 12px;
         padding: 0px;
-        margin: 0px;
+        margin-bottom: 8px;
+        border: 1px solid {theme['border']};
     }}
     QListWidget::item:hover {{
         background-color: {theme['hover']};
+        border: 1px solid {theme['primary']};
     }}
     QListWidget::item:selected {{
-        background-color: {theme['primary']};
-        color: white;
+        background-color: {theme['secondary']};
+        border: 1px solid {theme['primary']};
     }}
     QCheckBox {{
         spacing: 8px;
         background-color: transparent;
+        color: {theme['text-secondary']};
     }}
     QCheckBox::indicator {{
         width: 18px;
         height: 18px;
         border: 1px solid {theme['border']};
-        border-radius: 4px;
+        border-radius: 6px;
+        background-color: {theme['surface']};
     }}
     QCheckBox::indicator:checked {{
         background-color: {theme['primary']};
         border-color: {theme['primary']};
+        image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>');
     }}
     QLineEdit {{
         background-color: {theme['surface']};
         border: 1px solid {theme['border']};
-        border-radius: 6px;
-        padding: 10px;
+        border-radius: 8px;
+        padding: 12px;
+        selection-background-color: {theme['primary']};
+        selection-color: black;
+    }}
+    QLineEdit:focus {{
+        border: 1px solid {theme['primary']};
     }}
     QScrollBar:vertical {{
-        background: {theme['surface']};
+        background: transparent;
         width: 8px;
         margin: 0px;
     }}
@@ -251,31 +258,131 @@ def get_stylesheet(theme):
         background: {theme['secondary']};
         min-height: 20px;
         border-radius: 4px;
+        margin: 0px 1px;
+    }}
+    QScrollBar::handle:vertical:hover {{
+        background: {theme['hover']};
+    }}
+    QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+        height: 0px;
     }}
     QProgressBar {{
-        border: 1px solid {theme['border']};
+        border: none;
         border-radius: 4px;
-        background-color: {theme['surface']};
+        background-color: {theme['secondary']};
         text-align: center;
-        height: 8px;
+        height: 6px;
     }}
     QProgressBar::chunk {{
         background-color: {theme['primary']};
         border-radius: 4px;
     }}
-    QMessageBox, QDialog, QFileDialog {{
-        background-color: {theme['background']};
-        color: {theme['text']};
-    }}
     QMessageBox QLabel, QDialog QLabel {{
         color: {theme['text']};
+        background: transparent;
     }}
     QDialogButtonBox QPushButton {{
         background-color: {theme['surface']};
         border: 1px solid {theme['border']};
         border-radius: 6px;
         padding: 8px 16px;
+        min-width: 80px;
     }}"""
+
+
+class WindowsBlurEffect:
+    """Apply Windows DWM blur effect (Acrylic/Mica)."""
+    
+    def __init__(self):
+        self.dwmapi = ctypes.windll.dwmapi
+        self.user32 = ctypes.windll.user32
+        
+    def apply_blur(self, hwnd):
+        """Enable Acrylic blur for the given window handle."""
+        class ACCENT_POLICY(ctypes.Structure):
+            _fields_ = [
+                ("AccentState", ctypes.c_int),
+                ("AccentFlags", ctypes.c_int),
+                ("GradientColor", ctypes.c_int),
+                ("AnimationId", ctypes.c_int)
+            ]
+
+        class WINDOWCOMPOSITIONATTRIBDATA(ctypes.Structure):
+            _fields_ = [
+                ("Attribute", ctypes.c_int),
+                ("Data", ctypes.POINTER(ACCENT_POLICY)),
+                ("SizeOfData", ctypes.c_int)
+            ]
+
+        # Accent State: 3 = ACCENT_ENABLE_BLURBEHIND, 4 = ACCENT_ENABLE_ACRYLICBLURBEHIND
+        accent = ACCENT_POLICY()
+        accent.AccentState = 4  # Acrylic
+        accent.GradientColor = 0x01000000  # Transparent
+        
+        data = WINDOWCOMPOSITIONATTRIBDATA()
+        data.Attribute = 19  # WCA_ACCENT_POLICY
+        data.Data = ctypes.pointer(accent)
+        data.SizeOfData = ctypes.sizeof(accent)
+        
+        self.user32.SetWindowCompositionAttribute(
+            wintypes.HWND(int(hwnd)), 
+            ctypes.pointer(data)
+        )
+
+
+class WindowControlButton(QPushButton):
+    """Custom window control button (Close/Minimize) with anti-aliasing."""
+    
+    def __init__(self, btn_type, parent=None, theme=None):
+        super().__init__(parent)
+        self.btn_type = btn_type  # 'close' or 'minimize'
+        self.theme = theme
+        self.setFixedSize(34, 34)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.hovered = False
+        
+    def enterEvent(self, event):
+        self.hovered = True
+        self.update()
+        super().enterEvent(event)
+        
+    def leaveEvent(self, event):
+        self.hovered = False
+        self.update()
+        super().leaveEvent(event)
+        
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        
+        # Draw background on hover
+        if self.hovered:
+            color = self.theme['error'] if self.btn_type == 'close' else self.theme['hover']
+            painter.setBrush(QColor(color))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawRoundedRect(self.rect(), 17, 17)
+            
+        # Draw Icon
+        icon_color = QColor(self.theme['text'])
+        # For close button on hover, white text usually looks better on red
+        if self.hovered and self.btn_type == 'close':
+             icon_color = Qt.GlobalColor.white
+             
+        pen = QPen(icon_color)
+        pen.setWidth(2)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(pen)
+        
+        center = self.rect().center()
+        if self.btn_type == 'close':
+            offset = 5
+            painter.drawLine(center.x() - offset, center.y() - offset, 
+                             center.x() + offset, center.y() + offset)
+            painter.drawLine(center.x() + offset, center.y() - offset, 
+                             center.x() - offset, center.y() + offset)
+        elif self.btn_type == 'minimize':
+            painter.drawLine(center.x() - 5, center.y(), 
+                             center.x() + 5, center.y())
 
 
 class ErrorDialog(QDialog):
@@ -299,7 +406,7 @@ class ErrorDialog(QDialog):
         self.open_btn.clicked.connect(self.open_log_file)
         layout.addWidget(btn_box)
 
-        self.setStyleSheet(get_stylesheet(parent.theme if parent else DARK_THEME))
+        self.setStyleSheet(get_stylesheet(parent.theme if parent else GLASS_THEME))
 
     def open_log_file(self):
         if self.log_path.exists():
@@ -352,7 +459,7 @@ class PasswordDialog(QDialog):
 class PDFDropZone(QWidget):
     """Modern drop zone for PDF files."""
 
-    def __init__(self, parent=None, theme=DARK_THEME):
+    def __init__(self, parent=None, theme=GLASS_THEME):
         super().__init__(parent)
         self.parent_window = parent
         self.theme = theme
@@ -449,19 +556,33 @@ class PDFDropZone(QWidget):
 
 class FileListItem(QWidget):
     """Custom widget for file list items with status indicator."""
+    
+    remove_requested = pyqtSignal()
 
     def __init__(self, pdf_file: PDFFile, theme, parent=None):
         super().__init__(parent)
         self.pdf_file = pdf_file
         self.theme = theme
+        
+        # Main layout for the card
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(5)
+        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setSpacing(12)
+        layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
+        # File Icon
+        icon_label = QLabel("📄" if not pdf_file.encrypted else "🔒")
+        icon_label.setStyleSheet("font-size: 20px; background: transparent;")
+        layout.addWidget(icon_label)
+
+        # File Info Container
+        info_layout = QVBoxLayout()
+        info_layout.setSpacing(2)
+        info_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        
         self.name_label = QLabel(os.path.basename(pdf_file.path))
-        self.name_label.setStyleSheet(f"font-weight: 600; color: {theme['text']};")
-        self.name_label.setMinimumWidth(200)
-        layout.addWidget(self.name_label)
+        self.name_label.setStyleSheet(f"font-weight: 600; font-size: 14px; color: {theme['text']}; background: transparent;")
+        info_layout.addWidget(self.name_label)
 
         dir_path = os.path.dirname(pdf_file.path)
         if len(dir_path) > 40:
@@ -472,18 +593,24 @@ class FileListItem(QWidget):
         else:
             display_path = dir_path
 
-        self.path_label = QLabel(f"{'🔒' if pdf_file.encrypted else '📄'} {display_path}")
-        self.path_label.setStyleSheet(f"font-size: 12px; color: {theme['text-secondary']};")
+        self.path_label = QLabel(display_path)
+        self.path_label.setStyleSheet(f"font-size: 12px; color: {theme['text-secondary']}; background: transparent;")
         self.path_label.setToolTip(dir_path)
-        layout.addWidget(self.path_label)
+        info_layout.addWidget(self.path_label)
+        
+        layout.addLayout(info_layout, stretch=1)
 
+        # Status Section
         status_layout = QVBoxLayout()
+        status_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         self.status_label = QLabel()
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.status_label.setStyleSheet("background: transparent;")
         status_layout.addWidget(self.status_label)
 
         self.progress_container = QWidget()
         progress_layout = QVBoxLayout(self.progress_container)
+        progress_layout.setContentsMargins(0, 0, 0, 0)
         self.progress_bar = QProgressBar()
         self.progress_bar.setTextVisible(False)
         self.progress_bar.setMaximumHeight(8)
@@ -492,6 +619,12 @@ class FileListItem(QWidget):
         self.progress_container.setVisible(False)
         status_layout.addWidget(self.progress_container)
         layout.addLayout(status_layout)
+        
+        # Remove Button
+        self.remove_btn = WindowControlButton('close', theme=theme)
+        self.remove_btn.setFixedSize(28, 28) # Slightly smaller than window controls
+        self.remove_btn.clicked.connect(self.remove_requested.emit)
+        layout.addWidget(self.remove_btn)
 
         self.update_status(pdf_file.status)
         self.setMinimumHeight(50)
@@ -520,7 +653,7 @@ class PDFUnlocker(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.theme = DARK_THEME
+        self.theme = GLASS_THEME
         self.config_dir = Path.home() / ".pdf_unlocker"
         self.error_log_path = self.config_dir / "errors.txt"
         self.errors = []
@@ -534,43 +667,55 @@ class PDFUnlocker(QMainWindow):
     def init_ui(self):
         self.setWindowTitle("PDF Unlocker")
         self.setGeometry(100, 100, 900, 700)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.setStyleSheet(get_stylesheet(self.theme))
+        
+        # Apply Windows Blur Effect
+        if os.name == 'nt':
+            try:
+                blur = WindowsBlurEffect()
+                blur.apply_blur(self.winId())
+            except Exception as e:
+                print(f"Failed to apply blur: {e}")
+
         if os.path.exists("resources/app_icon.png"):
             self.setWindowIcon(QIcon("resources/app_icon.png"))
 
         central_widget = QWidget()
+        central_widget.setObjectName("centralWidget")
         self.setCentralWidget(central_widget)
+        # Apply border radius to central widget content if needed, 
+        # but usually main window transparency handles the shape.
+        
         layout = QVBoxLayout(central_widget)
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(20)
 
+        # Custom Title Bar
         header_layout = QHBoxLayout()
         header = QLabel("PDF Unlocker")
-        header.setStyleSheet(f"font-size: 24px; font-weight: 600; color: {self.theme['primary']};")
+        header.setStyleSheet(f"font-size: 24px; font-weight: 600; color: {self.theme['primary']}; background: transparent;")
         header_layout.addWidget(header)
         header_layout.addStretch()
 
-        self.theme_button = QPushButton()
-        self.theme_button.setIcon(QIcon(resource_path("resources/dark_mode.png")))
-        self.theme_button.setIconSize(QtCore.QSize(140, 50))  # Set icon size to match button
-        self.theme_button.setFixedSize(40, 40)
-        self.theme_button.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {self.theme['surface']}; 
-                border-radius: 20px; 
-                border: none;
-            }}
-            QPushButton:hover {{
-                background-color: {self.theme['hover']}; 
-            }}""")
-        self.theme_button.clicked.connect(self.toggle_theme)
-        header_layout.addWidget(self.theme_button)
+        # Window Controls
+        self.min_btn = WindowControlButton('minimize', theme=self.theme)
+        self.min_btn.clicked.connect(self.showMinimized)
+        
+        self.close_btn = WindowControlButton('close', theme=self.theme)
+        self.close_btn.clicked.connect(self.close)
+
+        header_layout.addWidget(self.min_btn)
+        header_layout.addSpacing(8)
+        header_layout.addWidget(self.close_btn)
         layout.addLayout(header_layout)
 
         self.drop_zone = PDFDropZone(self, self.theme)
         layout.addWidget(self.drop_zone)
 
         self.file_list = QListWidget()
+        self.file_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.file_list.customContextMenuRequested.connect(self.show_context_menu)
         layout.addWidget(self.file_list)
 
@@ -600,27 +745,38 @@ class PDFUnlocker(QMainWindow):
         self.process_btn.clicked.connect(self.process_files)
         layout.addWidget(self.process_btn)
 
-    def toggle_theme(self):
-        self.theme = LIGHT_THEME if self.theme == DARK_THEME else DARK_THEME
-        self.setStyleSheet(get_stylesheet(self.theme))
-        icon_path = resource_path("resources/dark_mode.png") if self.theme == DARK_THEME else resource_path("resources/light_mode.png")
-        self.theme_button.setIcon(QIcon(icon_path))
-        self.theme_button.setIconSize(QtCore.QSize(140, 50))
-        if os.path.exists(icon_path):
-            self.theme_button.setIcon(QIcon(icon_path))
-        self.drop_zone.theme = self.theme
-        self.drop_zone.setStyleSheet(f"""
-            PDFDropZone {{ background-color: {self.theme['surface']}; border: 2px dashed {self.theme['border']}; }}
-            PDFDropZone:hover {{ border-color: {self.theme['primary']}; background-color: {self.theme['hover']}; }}""")
-        self.drop_zone.text_label.setStyleSheet(f"color: {self.theme['text-secondary']}; font-size: 16px;")
-        self.process_btn.setStyleSheet(f"background-color: {self.theme['primary']}; color: white;")
-        self.overwrite_checkbox.setStyleSheet(f"color: {self.theme['text-secondary']};")
-        for i in range(self.file_list.count()):
-            item = self.file_list.item(i)
-            widget = self.file_list.itemWidget(item)
-            if isinstance(widget, FileListItem):
-                widget.theme = self.theme
-                widget.update_status(widget.pdf_file.status)
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        # Use the background color from theme but as QColor
+        bg_color = QColor(self.theme['background'])
+        painter.setBrush(bg_color)
+        painter.setPen(Qt.PenStyle.NoPen)
+        # Draw rounded rect with 20px radius
+        painter.drawRoundedRect(self.rect(), 20, 20)
+
+    # Window Dragging Logic
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            event.accept()
+
+    def mouseMoveEvent(self, event):
+        if event.buttons() == Qt.MouseButton.LeftButton:
+            if hasattr(self, 'drag_pos'):
+                self.move(event.globalPosition().toPoint() - self.drag_pos)
+                event.accept()
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Delete:
+            self.remove_pdf_file()
+        else:
+            super().keyPressEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        self.drag_pos = None
+
+
 
     def handle_pdf_file(self, file_path):
         if file_path in self.pdf_files:
@@ -670,9 +826,18 @@ class PDFUnlocker(QMainWindow):
         self.pdf_files[pdf_file.path] = pdf_file
         item = QListWidgetItem()
         list_item_widget = FileListItem(pdf_file, self.theme)
+        list_item_widget.remove_requested.connect(lambda: self.remove_file_item(item))
         item.setSizeHint(list_item_widget.sizeHint())
         self.file_list.addItem(item)
         self.file_list.setItemWidget(item, list_item_widget)
+        self.drop_zone.update_text(len(self.pdf_files))
+
+    def remove_file_item(self, item):
+        widget = self.file_list.itemWidget(item)
+        if isinstance(widget, FileListItem) and widget.pdf_file.path in self.pdf_files:
+            del self.pdf_files[widget.pdf_file.path]
+        row = self.file_list.row(item)
+        self.file_list.takeItem(row)
         self.drop_zone.update_text(len(self.pdf_files))
 
     def show_context_menu(self, position):
